@@ -19,6 +19,10 @@ wbu-schedule-landing/
 ├── vite.config.mjs
 ├── tailwind.config.js
 ├── postcss.config.js
+├── server/
+│   ├── index.mjs
+│   └── data/
+│       └── classflow.sqlite (runtime generated)
 ├── src/
 │   ├── main.jsx
 │   ├── App.jsx
@@ -42,6 +46,8 @@ wbu-schedule-landing/
 | `src/index.css` | Design tokens, base styles, utility classes, shared UI styles | High |
 | `tailwind.config.js` | Tailwind config and utility extension | Low |
 | `vite.config.mjs` | Build/dev server config | Low |
+| `server/index.mjs` | API 服务、SQLite 初始化、下载统计与评论接口 | Medium |
+| `server/data/classflow.sqlite` | 下载计数和评论数据持久化文件 | Runtime |
 
 ## 4. Section Architecture in `App.jsx`
 

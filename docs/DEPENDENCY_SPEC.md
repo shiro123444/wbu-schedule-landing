@@ -15,6 +15,9 @@ Any AI adding packages must justify necessity against this spec.
 
 | Package | Version (current) | Purpose |
 |---|---|---|
+| `express` | `^5.2.1` | 提供轻量后端 API（下载计数、评论读取） |
+| `better-sqlite3` | `^12.6.2` | 本地 SQLite 数据持久化（同步访问，低复杂度） |
+| `swiper` | `^12.1.2` | 成熟轮播动画库（Hero 评论区自动轮播） |
 | `react` | `^19.2.4` | UI rendering and component state model |
 | `react-dom` | `^19.2.4` | Browser DOM renderer |
 | `framer-motion` | `^12.34.5` | Declarative motion and transitions |
