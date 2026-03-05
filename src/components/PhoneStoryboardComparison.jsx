@@ -78,13 +78,13 @@ const TODAY_COURSES = [
 ];
 
 const SCENES = [
-  { id: "launch", duration: 2400, leftPanel: 0, dayIndex: 0, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0, camera: { scale: 1, x: 0, y: 0, origin: "50% 16%" }, focusKey: null, showToday: false },
-  { id: "swipe", duration: 2100, leftPanel: 1, dayIndex: 1, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0, camera: { scale: 1.04, x: -8, y: -10, origin: "50% 22%" }, focusKey: null, showToday: false },
-  { id: "focus-sync", duration: 2200, leftPanel: 1, dayIndex: 1, showSyncPulse: true, showSheet: false, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0, camera: { scale: 1.36, x: -94, y: 26, origin: "82% 10%" }, focusKey: "sync", showToday: false },
-  { id: "open-sheet", duration: 2400, leftPanel: 2, dayIndex: 1, showSyncPulse: false, showSheet: true, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0.1, camera: { scale: 1.16, x: -18, y: -84, origin: "50% 86%" }, focusKey: "sheet", showToday: false },
-  { id: "syncing", duration: 2400, leftPanel: 2, dayIndex: 1, showSyncPulse: false, showSheet: true, showLoading: true, showSuccess: false, showImported: false, bgDimAlpha: 0.1, camera: { scale: 1.18, x: -20, y: -86, origin: "50% 86%" }, focusKey: "sheet", showToday: false },
-  { id: "done", duration: 2900, leftPanel: 3, dayIndex: 1, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: true, showImported: true, bgDimAlpha: 0, camera: { scale: 1.15, x: -8, y: -8, origin: "42% 42%" }, focusKey: "imported", showToday: false },
-  { id: "today", duration: 3200, leftPanel: 3, dayIndex: 1, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: false, showImported: true, bgDimAlpha: 0, camera: { scale: 1, x: 0, y: 0, origin: "50% 50%" }, focusKey: "today-card", showToday: true },
+  { id: "launch", duration: 2400, leftPanel: 0, dayIndex: 0, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0, camera: { scale: 1, x: 0, y: 0 }, focusKey: null, showToday: false },
+  { id: "swipe", duration: 2100, leftPanel: 1, dayIndex: 1, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0, camera: { scale: 1.04, x: -15, y: -17 }, focusKey: null, showToday: false },
+  { id: "focus-sync", duration: 2200, leftPanel: 1, dayIndex: 1, showSyncPulse: true, showSheet: false, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0, camera: { scale: 1.36, x: -200, y: -2 }, focusKey: "sync", showToday: false },
+  { id: "open-sheet", duration: 2400, leftPanel: 2, dayIndex: 1, showSyncPulse: false, showSheet: true, showLoading: false, showSuccess: false, showImported: false, bgDimAlpha: 0.1, camera: { scale: 1.16, x: -47, y: -191 }, focusKey: "sheet", showToday: false },
+  { id: "syncing", duration: 2400, leftPanel: 2, dayIndex: 1, showSyncPulse: false, showSheet: true, showLoading: true, showSuccess: false, showImported: false, bgDimAlpha: 0.1, camera: { scale: 1.18, x: -52, y: -207 }, focusKey: "sheet", showToday: false },
+  { id: "done", duration: 2900, leftPanel: 3, dayIndex: 1, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: true, showImported: true, bgDimAlpha: 0, camera: { scale: 1.15, x: -31, y: -57 }, focusKey: "imported", showToday: false },
+  { id: "today", duration: 3200, leftPanel: 3, dayIndex: 1, showSyncPulse: false, showSheet: false, showLoading: false, showSuccess: false, showImported: true, bgDimAlpha: 0, camera: { scale: 1, x: 0, y: 0 }, focusKey: "today-card", showToday: true },
 ];
 
 const FOCUS_LABELS = {
@@ -447,7 +447,7 @@ function ClassFlowRuntime({ scene, reducedMotion }) {
       <motion.div
         key="weekly-view"
         className="absolute inset-0"
-        style={{ transformOrigin: scene.camera.origin }}
+        style={{ transformOrigin: "0 0" }}
         initial={{ opacity: 0, x: -40 }}
         animate={{
           opacity: 1,
@@ -579,6 +579,7 @@ function ClassFlowRuntime({ scene, reducedMotion }) {
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 exit={{ y: 20, opacity: 0 }}
+                transition={reducedMotion ? { duration: 0 } : { duration: 0.4, ease: sceneEase }}
                 className="absolute bottom-[24px] left-[16px] right-[16px] z-30 rounded-[4px] bg-[#2b3133] shadow-lg flex items-center px-4 py-3"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-[20px] h-[20px] text-[#81c995] shrink-0 mr-3">
