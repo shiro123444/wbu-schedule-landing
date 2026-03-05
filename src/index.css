@@ -1,0 +1,349 @@
+/* Frontend Aesthetics Design System - ClassFlow */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@500;700;900&display=swap');
+
+@import "tailwindcss";
+
+/* Tailwind CSS 4 Theme Configuration */
+@theme {
+  /* Solarized Color System */
+  --color-solarized-base03: #002b36;
+  --color-solarized-base02: #073642;
+  --color-solarized-base01: #586e75;
+  --color-solarized-base00: #657b83;
+  --color-solarized-base0: #839496;
+  --color-solarized-base1: #93a1a1;
+  --color-solarized-base2: #eee8d5;
+  --color-solarized-base3: #fdf6e3;
+  --color-solarized-yellow: #b58900;
+  --color-solarized-orange: #cb4b16;
+  --color-solarized-red: #dc322f;
+  --color-solarized-magenta: #d33682;
+  --color-solarized-violet: #6c71c4;
+  --color-solarized-blue: #268bd2;
+  --color-solarized-cyan: #2aa198;
+  --color-solarized-green: #859900;
+
+  /* Font Families */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-sans: 'Space Grotesk', system-ui, sans-serif;
+  --font-serif: 'Noto Serif SC', serif;
+
+  /* Animations */
+  --animate-fade-in: fadeIn 0.6s ease-out;
+  --animate-slide-up: slideUp 0.8s ease-out;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    0% { transform: translateY(20px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+}
+
+/* Base Styles */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--color-solarized-base3);
+  color: var(--color-solarized-base02);
+  min-height: 100vh;
+  font-family: var(--font-sans);
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h1 {
+  font-size: clamp(3rem, 5vw, 4.5rem);
+}
+
+h2 {
+  font-size: clamp(2.5rem, 4vw, 3.75rem);
+}
+
+h3 {
+  font-size: clamp(1.875rem, 3vw, 2.25rem);
+}
+
+/* Button Styles - Brutalist Aesthetic */
+.btn-primary {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--color-solarized-orange);
+  color: var(--color-solarized-base3);
+  font-weight: 600;
+  border-radius: 0;
+  transition: all 0.2s;
+  box-shadow: 4px 4px 0px 0px rgba(0, 43, 54, 1);
+  will-change: transform, box-shadow;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-solarized-red);
+  transform: translate(1px, -1px);
+  box-shadow: 6px 6px 0px 0px rgba(0, 43, 54, 1);
+}
+
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  background-color: transparent;
+  border: 2px solid var(--color-solarized-base02);
+  color: var(--color-solarized-base02);
+  font-weight: 600;
+  border-radius: 0;
+  transition: all 0.2s;
+  will-change: transform, background-color;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-solarized-base02);
+  color: var(--color-solarized-base3);
+  transform: translate(1px, -1px);
+}
+
+.btn-accent {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--color-solarized-cyan);
+  color: var(--color-solarized-base3);
+  font-weight: 600;
+  border-radius: 0;
+  transition: all 0.2s;
+  box-shadow: 4px 4px 0px 0px rgba(0, 43, 54, 1);
+  will-change: transform, box-shadow;
+}
+
+.btn-accent:hover {
+  background-color: var(--color-solarized-blue);
+  transform: translate(1px, -1px);
+}
+
+/* Card Styles */
+.card-asymmetric {
+  background-color: var(--color-solarized-base2);
+  border: 2px solid var(--color-solarized-base02);
+  padding: 1.5rem;
+  transition: all 0.2s;
+  box-shadow: 4px 4px 0px 0px rgba(0, 43, 54, 1);
+  will-change: transform;
+}
+
+.card-asymmetric:hover {
+  transform: translate(2px, -2px);
+}
+
+.card-primary {
+  background-color: var(--color-solarized-base3);
+  border: 2px solid var(--color-solarized-base1);
+  border-radius: 0;
+  padding: 1.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-primary:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  border-color: var(--color-solarized-cyan);
+}
+
+.card-accent {
+  background-color: var(--color-solarized-cyan);
+  color: var(--color-solarized-base3);
+  border-radius: 0;
+  padding: 1.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.card-accent:hover {
+  box-shadow: 8px 8px 0px 0px rgba(0, 43, 54, 1);
+  transform: translate(1px, -1px);
+}
+
+/* Schedule Item */
+.schedule-item {
+  background-color: var(--color-solarized-base2);
+  border-left: 4px solid var(--color-solarized-cyan);
+  padding: 1rem;
+  transition: all 0.2s;
+  will-change: transform, border-color;
+}
+
+.schedule-item:hover {
+  border-left-color: var(--color-solarized-orange);
+  transform: translateX(4px);
+}
+
+.schedule-item-active {
+  background-color: rgba(181, 137, 0, 0.1);
+  border-left-color: var(--color-solarized-orange);
+}
+
+/* Course Card */
+.course-card {
+  position: relative;
+  background-color: var(--color-solarized-base3);
+  border-radius: 0;
+  padding: 1.25rem;
+  border-left: 4px solid var(--color-solarized-blue);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s;
+}
+
+.course-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  transform: translateX(4px);
+}
+
+/* Day Column */
+.day-column {
+  background-color: rgba(238, 232, 213, 0.5);
+  border-radius: 0;
+  padding: 1rem;
+  border: 2px solid var(--color-solarized-base01);
+  transition: all 0.3s;
+}
+
+.day-column:hover {
+  background-color: var(--color-solarized-base2);
+  border-color: var(--color-solarized-cyan);
+}
+
+/* Text Styles */
+.text-gradient {
+  background: linear-gradient(to right, var(--color-solarized-cyan), var(--color-solarized-blue), var(--color-solarized-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-accent {
+  color: var(--color-solarized-cyan);
+  font-weight: 600;
+}
+
+.heading-display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-solarized-base02);
+  text-shadow: 0 2px 4px rgba(0, 43, 54, 0.1);
+}
+
+.text-body {
+  color: var(--color-solarized-base01);
+  line-height: 1.75;
+}
+
+/* Layout Utilities */
+.section-container {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 4rem 1rem;
+}
+
+@media (min-width: 640px) {
+  .section-container {
+    padding: 4rem 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .section-container {
+    padding: 6rem 2rem;
+  }
+}
+
+/* Focus States */
+.focus-ring:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-solarized-base3), 0 0 0 4px var(--color-solarized-cyan);
+}
+
+/* Utilities */
+.text-display {
+  font-family: var(--font-display);
+}
+
+.space-y-section > * + * {
+  margin-top: 4rem;
+}
+
+@media (min-width: 768px) {
+  .space-y-section > * + * {
+    margin-top: 6rem;
+  }
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.backdrop-blur-glass {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--color-solarized-base2);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-solarized-base01);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-solarized-cyan);
+}
+
+/* Selection */
+::selection {
+  background-color: var(--color-solarized-cyan);
+  color: var(--color-solarized-base3);
+}
+
+::-moz-selection {
+  background-color: var(--color-solarized-cyan);
+  color: var(--color-solarized-base3);
+}
+
+/* Respect user's motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

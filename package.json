@@ -1,0 +1,35 @@
+{
+  "name": "wbu-schedule-landing",
+  "version": "1.0.0",
+  "description": "武汉商学院课程表官网展示页（独立静态站点）。",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shiro123444/wbu-schedule-landing.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shiro123444/wbu-schedule-landing/issues"
+  },
+  "homepage": "https://github.com/shiro123444/wbu-schedule-landing#readme",
+  "dependencies": {
+    "framer-motion": "^12.34.5",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.2.1",
+    "@vitejs/plugin-react": "^5.1.4",
+    "autoprefixer": "^10.4.27",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.1",
+    "vite": "^7.3.1"
+  }
+}
