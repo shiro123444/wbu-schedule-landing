@@ -114,6 +114,10 @@ const OTHER_PANELS = [
 ];
 
 const sceneEase = [0.22, 1, 0.36, 1];
+const cameraTransition = {
+  duration: 0.9,
+  ease: [0.4, 0, 0.2, 1],
+};
 const springTransition = {
   type: "spring",
   stiffness: 120,
@@ -456,7 +460,7 @@ function ClassFlowRuntime({ scene, reducedMotion }) {
           y: scene.camera.y,
         }}
         exit={{ opacity: 0, x: 40 }}
-        transition={reducedMotion ? { duration: 0 } : springTransition}
+        transition={reducedMotion ? { duration: 0 } : cameraTransition}
       >
         <div className="relative flex flex-col h-full bg-[#fdfcff]">
           <motion.div
