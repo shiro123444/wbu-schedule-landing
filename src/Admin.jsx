@@ -1,24 +1,81 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
+const ADMIN_TOKEN_KEY = "classflow_admin_token";
+const ADMIN_USERNAME = "admin";
+
+const SITE_CONTENT_FIELDS = [
+  { key: "hero_badge", label: "首页徽章" },
+  { key: "hero_title_line1", label: "首页标题第一行" },
+  { key: "hero_title_highlight", label: "首页标题高亮" },
+  { key: "hero_description", label: "首页简介", multiline: true },
+  { key: "feature_section_badge", label: "功能区徽章" },
+  { key: "feature_section_title", label: "功能区标题" },
+  { key: "feature_1_title", label: "功能 1 标题" },
+  { key: "feature_1_desc", label: "功能 1 描述", multiline: true },
+  { key: "feature_2_title", label: "功能 2 标题" },
+  { key: "feature_2_desc", label: "功能 2 描述", multiline: true },
+  { key: "feature_3_title", label: "功能 3 标题" },
+  { key: "feature_3_desc", label: "功能 3 描述", multiline: true },
+];
+
 export default function Admin() {
+    const [token, setToken] = useState(() => localStorage.getItem(ADMIN_TOKEN_KEY) || "");
+    const [loginUsername, setLoginUsername] = useState(ADMIN_USERNAME);
+    const [loginPassword, setLoginPassword] = useState("");
+    const [loginError, setLoginError] = useState("");
+    const [loggingIn, setLoggingIn] = useState(false);
+    const [authUser, setAuthUser] = useState(null);
+
     const [testimonials, setTestimonials] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Add state
     const [newAuthor, setNewAuthor] = useState("");
     const [newQuote, setNewQuote] = useState("");
     const [adding, setAdding] = useState(false);
 
-    // Edit state
     const [editingId, setEditingId] = useState(null);
     const [editAuthor, setEditAuthor] = useState("");
     const [editQuote, setEditQuote] = useState("");
     const [saving, setSaving] = useState(false);
 
+    const [siteContent, setSiteContent] = useState({});
+    const [siteContentLoading, setSiteContentLoading] = useState(true);
+    const [savingSiteKey, setSavingSiteKey] = useState("");
+
+    const authHeaders = useMemo(() => {
+        if (!token) return {};
+        return { Authorization: `Bearer ${token}` };
+    }, [token]);
+
+    const handleUnauthorized = () => {
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
+        setToken("");
+        setAuthUser(null);
+    };
+
+    const authFetch = async (url, options = {}) => {
+        const headers = {
+            ...(options.headers || {}),
+            ...authHeaders,
+        };
+        const res = await fetch(url, { ...options, headers });
+        if (res.status === 401) {
+            handleUnauthorized();
+            throw new Error("登录已过期，请重新登录");
+        }
+        return res;
+    };
+
+    const fetchMe = async () => {
+        const res = await authFetch("/api/admin/me");
+        const data = await res.json();
+        setAuthUser(data.user || null);
+    };
+
     const fetchTestimonials = async () => {
         try {
-            const res = await fetch("/api/testimonials");
+            const res = await authFetch("/api/admin/testimonials");
             const data = await res.json();
             setTestimonials(data.testimonials || []);
         } catch (err) {
@@ -28,14 +85,83 @@ export default function Admin() {
         }
     };
 
+    const fetchSiteContent = async () => {
+        try {
+            const res = await authFetch("/api/admin/site-content");
+            const data = await res.json();
+            const contentMap = (data.content || []).reduce((acc, row) => {
+                acc[row.key] = row.value;
+                return acc;
+            }, {});
+            setSiteContent(contentMap);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setSiteContentLoading(false);
+        }
+    };
+
     useEffect(() => {
+        if (!token) {
+            setLoading(false);
+            setSiteContentLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setSiteContentLoading(true);
+        fetchMe();
         fetchTestimonials();
-    }, []);
+        fetchSiteContent();
+    }, [token]);
+
+    const handleLogin = async (e) => {
+        e.preventDefault();
+        if (!loginUsername.trim() || !loginPassword.trim()) return;
+
+        setLoggingIn(true);
+        setLoginError("");
+        try {
+            const res = await fetch("/api/admin/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    username: loginUsername.trim(),
+                    password: loginPassword,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setLoginError(data.error || "登录失败");
+                return;
+            }
+
+            localStorage.setItem(ADMIN_TOKEN_KEY, data.token);
+            setToken(data.token);
+            setAuthUser(data.user || null);
+            setLoginPassword("");
+        } catch (err) {
+            console.error(err);
+            setLoginError("网络错误，请稍后重试");
+        } finally {
+            setLoggingIn(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await authFetch("/api/admin/logout", { method: "POST" });
+        } catch (err) {
+            console.error(err);
+        } finally {
+            handleUnauthorized();
+        }
+    };
 
     const handleDelete = async (id) => {
         if (!confirm("确定要删除这条留言吗？")) return;
         try {
-            const res = await fetch(`/api/testimonials/${id}`, { method: "DELETE" });
+            const res = await authFetch(`/api/admin/testimonials/${id}`, { method: "DELETE" });
             if (res.ok) {
                 setTestimonials((prev) => prev.filter((t) => t.id !== id));
             } else {
@@ -52,7 +178,7 @@ export default function Admin() {
         if (!newAuthor.trim() || !newQuote.trim()) return;
         setAdding(true);
         try {
-            const res = await fetch("/api/testimonials", {
+            const res = await authFetch("/api/admin/testimonials", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ author: newAuthor, quote: newQuote }),
@@ -89,7 +215,7 @@ export default function Admin() {
         if (!editAuthor.trim() || !editQuote.trim()) return;
         setSaving(true);
         try {
-            const res = await fetch(`/api/testimonials/${id}`, {
+            const res = await authFetch(`/api/admin/testimonials/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ author: editAuthor, quote: editQuote }),
@@ -111,6 +237,83 @@ export default function Admin() {
         }
     };
 
+    const handleSaveSiteText = async (key) => {
+        const value = (siteContent[key] || "").trim();
+        if (!value) {
+            alert("文案不能为空");
+            return;
+        }
+
+        setSavingSiteKey(key);
+        try {
+            const res = await authFetch(`/api/admin/site-content/${encodeURIComponent(key)}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ value }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || "保存失败");
+                return;
+            }
+            setSiteContent((prev) => ({ ...prev, [key]: value }));
+        } catch (err) {
+            console.error(err);
+            alert("网络错误");
+        } finally {
+            setSavingSiteKey("");
+        }
+    };
+
+    if (!token) {
+        return (
+            <div className="min-h-screen bg-solarized-base3 text-solarized-base02 font-sans py-12 px-6 selection:bg-solarized-yellow selection:text-solarized-base3 pb-32">
+                <div className="max-w-xl mx-auto space-y-8">
+                    <div className="border-b-2 border-solarized-base02 pb-4">
+                        <h1 className="text-3xl font-display font-bold">ClassFlow 管理员登录</h1>
+                        <p className="text-solarized-base01 mt-1 text-sm">请输入管理员账号密码后进入控制台。</p>
+                    </div>
+
+                    <div className="bg-solarized-base2 border-2 border-solarized-base02 p-6 shadow-[8px_8px_0px_0px_rgba(0,43,54,1)]">
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <label className="block">
+                                <span className="block text-sm font-semibold mb-1">账号</span>
+                                <input
+                                    value={loginUsername}
+                                    onChange={(e) => setLoginUsername(e.target.value)}
+                                    className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                    required
+                                />
+                            </label>
+                            <label className="block">
+                                <span className="block text-sm font-semibold mb-1">密码</span>
+                                <input
+                                    type="password"
+                                    value={loginPassword}
+                                    onChange={(e) => setLoginPassword(e.target.value)}
+                                    className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                    required
+                                />
+                            </label>
+
+                            {loginError && (
+                                <p className="text-sm text-solarized-red font-semibold">{loginError}</p>
+                            )}
+
+                            <button
+                                type="submit"
+                                disabled={loggingIn}
+                                className="btn-primary w-full"
+                            >
+                                {loggingIn ? "登录中..." : "进入后台"}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-solarized-base3 text-solarized-base02 font-sans py-12 px-6 selection:bg-solarized-yellow selection:text-solarized-base3 pb-32">
             <div className="max-w-4xl mx-auto space-y-8">
@@ -118,10 +321,14 @@ export default function Admin() {
                     <div>
                         <h1 className="text-3xl font-display font-bold">ClassFlow 留言管理</h1>
                         <p className="text-solarized-base01 mt-1 text-sm">简单直接的后端数据管理面板。</p>
+                        {authUser && (
+                            <p className="text-solarized-base01 mt-1 text-xs">当前管理员：{authUser.username}（{authUser.role}）</p>
+                        )}
                     </div>
-                    <a href="/" className="btn-secondary">
-                        返回主页
-                    </a>
+                    <div className="flex items-center gap-2">
+                        <a href="/" className="btn-secondary">返回主页</a>
+                        <button onClick={handleLogout} className="btn-secondary">退出登录</button>
+                    </div>
                 </div>
 
                 {/* Add New Form */}
@@ -259,6 +466,42 @@ export default function Admin() {
                         </table>
                     </div>
                 )}
+
+                <div className="bg-solarized-base2 border-2 border-solarized-base02 p-6 shadow-[8px_8px_0px_0px_rgba(0,43,54,1)]">
+                    <h2 className="text-lg font-bold mb-4 font-display">页面文案管理（持久化数据库）</h2>
+                    {siteContentLoading ? (
+                        <p className="text-solarized-base01">加载中...</p>
+                    ) : (
+                        <div className="grid md:grid-cols-2 gap-4">
+                            {SITE_CONTENT_FIELDS.map((field) => (
+                                <div key={field.key} className="border-2 border-solarized-base02 p-4 bg-solarized-base3">
+                                    <p className="text-sm font-semibold mb-2">{field.label}</p>
+                                    {field.multiline ? (
+                                        <textarea
+                                            value={siteContent[field.key] || ""}
+                                            onChange={(e) => setSiteContent((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                                            rows={3}
+                                            className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                        />
+                                    ) : (
+                                        <input
+                                            value={siteContent[field.key] || ""}
+                                            onChange={(e) => setSiteContent((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                                            className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                        />
+                                    )}
+                                    <button
+                                        onClick={() => handleSaveSiteText(field.key)}
+                                        disabled={savingSiteKey === field.key}
+                                        className="mt-3 px-3 py-1.5 bg-solarized-cyan/10 text-solarized-cyan border-2 border-solarized-cyan font-bold hover:bg-solarized-cyan hover:text-solarized-base3 transition-colors cursor-pointer"
+                                    >
+                                        {savingSiteKey === field.key ? "保存中..." : "保存"}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -1,37 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatedList } from "./AnimatedList";
 
-/* ─── Testimonial data ─── */
-const TESTIMONIALS = [
-  {
-    id: "t-1",
-    author: "电子商务 22 级 · 黄同学",
-    quote: "最喜欢它的极简设计，信息密度够高但不乱，期中周复习安排很省心。",
-  },
-  {
-    id: "t-2",
-    author: "人工智能 23 级 · 吴同学",
-    quote: "周视图切换很顺滑，晚课和实验课都看得很清楚，手机上操作也方便。",
-  },
-  {
-    id: "t-3",
-    author: "数据科学 24 级 · 周同学",
-    quote: "社团活动多的时候也能快速查空档，课表和生活安排终于不打架了。",
-  },
-  {
-    id: "t-4",
-    author: "市场营销 23 级 · 陈同学",
-    quote: "界面很清爽，没有广告弹窗，打开就能看到今天每节课的时间和地点。",
-  },
-  {
-    id: "t-5",
-    author: "软件工程 22 级 · 林同学",
-    quote: "同步教务系统后，临时调课会自动更新，再也不会因为旧截图跑错教室。",
-  },
-];
-
-/* Multiply so the list keeps cycling */
-const allNotifications = Array.from({ length: 8 }, () => TESTIMONIALS).flat();
+const FALLBACK_TESTIMONIALS = [];
 
 function normalizeTestimonials(rows) {
   if (!Array.isArray(rows)) return [];
@@ -101,7 +71,7 @@ function TestimonialCard({ author, quote, index }) {
 
 /* ─── Main component ─── */
 export default function TestimonialCarousel() {
-  const [testimonials, setTestimonials] = useState(TESTIMONIALS);
+  const [testimonials, setTestimonials] = useState(FALLBACK_TESTIMONIALS);
 
   /* Fetch remote testimonials */
   useEffect(() => {
@@ -112,7 +82,7 @@ export default function TestimonialCarousel() {
         if (!response.ok) return;
         const payload = await response.json();
         const normalized = normalizeTestimonials(payload?.testimonials);
-        if (!cancelled && normalized.length > 0) {
+        if (!cancelled) {
           setTestimonials(normalized);
         }
       } catch (_error) {
@@ -141,16 +111,29 @@ export default function TestimonialCarousel() {
         className="relative flex w-full flex-col overflow-y-hidden overflow-x-visible [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         style={{ height: "520px" }}
       >
-        <AnimatedList delay={2000}>
-          {notifications.map((item, idx) => (
-            <TestimonialCard
-              key={`${item.id}-${idx}`}
-              author={item.author}
-              quote={item.quote}
-              index={idx}
-            />
-          ))}
-        </AnimatedList>
+        {notifications.length > 0 ? (
+          <AnimatedList delay={2000}>
+            {notifications.map((item, idx) => (
+              <TestimonialCard
+                key={`${item.id}-${idx}`}
+                author={item.author}
+                quote={item.quote}
+                index={idx}
+              />
+            ))}
+          </AnimatedList>
+        ) : (
+          <div
+            className="p-6 text-sm font-medium"
+            style={{
+              color: "var(--color-solarized-base01)",
+              background: "var(--color-solarized-base2)",
+              border: "2px solid var(--color-solarized-base02)",
+            }}
+          >
+            暂无留言，等待第一条真实反馈。
+          </div>
+        )}
 
         {/* Bottom fade gradient */}
         <div
