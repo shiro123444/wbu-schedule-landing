@@ -56,27 +56,29 @@ const DAYS = [
   },
 ];
 
-const DOWNLOAD_URL = "https://github.com/shiro123444/ClassFlow/releases/download/v1.0.0.0/app-prod-arm64-v8a-release.apk";
+const DEFAULT_DOWNLOAD_URL = "https://github.com/shiro123444/ClassFlow/releases/latest/download/app-prod-arm64-v8a-release.apk";
 const GITHUB_URL = "https://github.com/shiro123444/ClassFlow";
 const RELEASES_URL = "https://github.com/shiro123444/ClassFlow/releases/latest";
 const QQ_GROUP_URL = "https://qm.qq.com/q/6HDQuU2R68";
 const AI_PORTAL_URL = "https://portal.wbuai.me/";
 
-const SITE_TEXT_DEFAULTS = {
-  hero_badge: "武汉商学院专属",
-  hero_title_line1: "你的课表，",
-  hero_title_highlight: "只属于你",
-  hero_description:
-    "专为武汉商学院打造的现代化课表应用。无感自动同步教务系统，完全开源，无隐私泄漏。",
-  feature_section_badge: "核心功能",
-  feature_section_title: "为什么选择 ClassFlow",
-  feature_1_title: "教务系统同步",
-  feature_1_desc: "自动对接武汉商学院教务系统，课表实时更新",
-  feature_2_title: "现代化界面",
-  feature_2_desc: "高对比度设计语言，清晰直观的视觉体验",
-  feature_3_title: "轻量无广告",
-  feature_3_desc: "纯净体验，专注课表管理，无任何广告干扰",
-};
+const FEATURES = [
+  {
+    title: "教务系统同步",
+    desc: "自动对接武汉商学院教务系统，课表实时更新",
+    color: "cyan",
+  },
+  {
+    title: "现代化界面",
+    desc: "高对比度设计语言，清晰直观的视觉体验",
+    color: "blue",
+  },
+  {
+    title: "轻量无广告",
+    desc: "纯净体验，专注课表管理，无任何广告干扰",
+    color: "green",
+  },
+];
 
 const ease = [0.22, 1, 0.36, 1];
 const cycleDuration = 4500;
@@ -126,6 +128,7 @@ function useReducedMotion() {
 
 export default function App() {
   const reducedMotion = useReducedMotion();
+  const [downloadUrl, setDownloadUrl] = useState(DEFAULT_DOWNLOAD_URL);
   const [dayIndex, setDayIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [autoCycleCompleted, setAutoCycleCompleted] = useState(false);
@@ -137,7 +140,6 @@ export default function App() {
   const [message, setMessage] = useState("");
   const [submitPending, setSubmitPending] = useState(false);
   const [submitError, setSubmitError] = useState("");
-  const [siteText, setSiteText] = useState(SITE_TEXT_DEFAULTS);
 
   const handleFeedbackSubmit = async (e) => {
     e.preventDefault();
@@ -160,33 +162,35 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+    let active = true;
+    fetch("/api/config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((config) => {
+        if (!active) return;
+        if (config?.downloadUrl) setDownloadUrl(config.downloadUrl);
+      })
+      .catch(() => {
+        // Keep default latest-release URL when API config is unavailable.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const trackDownload = () => {
+    fetch("/api/download", { method: "POST", keepalive: true }).catch(() => {
+      // Ignore metrics errors and never block user downloads.
+    });
+  };
+
   const showcaseRef = useRef(null);
   const showcaseInView = useInView(showcaseRef, { amount: 0.4, once: false });
 
   const shouldAnimateProgress = useMemo(
     () => showcaseInView && !reducedMotion && !paused && !autoCycleCompleted,
     [showcaseInView, reducedMotion, paused, autoCycleCompleted]
-  );
-
-  const features = useMemo(
-    () => [
-      {
-        title: siteText.feature_1_title,
-        desc: siteText.feature_1_desc,
-        color: "cyan",
-      },
-      {
-        title: siteText.feature_2_title,
-        desc: siteText.feature_2_desc,
-        color: "blue",
-      },
-      {
-        title: siteText.feature_3_title,
-        desc: siteText.feature_3_desc,
-        color: "green",
-      },
-    ],
-    [siteText]
   );
 
   useEffect(() => {
@@ -202,27 +206,6 @@ export default function App() {
 
     return () => window.clearInterval(timer);
   }, [shouldAnimateProgress]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSiteContent() {
-      try {
-        const res = await fetch("/api/site-content");
-        if (!res.ok) return;
-        const payload = await res.json();
-        if (cancelled || !payload?.content) return;
-        setSiteText((prev) => ({ ...prev, ...payload.content }));
-      } catch (_error) {
-        // Keep local defaults when API is unavailable.
-      }
-    }
-
-    loadSiteContent();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const resetCycleFrom = (index) => {
     setDayIndex(index);
@@ -265,11 +248,11 @@ export default function App() {
                 社群
               </a>
               <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="text-solarized-base01 hover:text-solarized-base02 transition-colors cursor-pointer" title="GitHub">
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" /></svg>
               </a>
             </div>
 
-            <a href={DOWNLOAD_URL} download className="btn-primary cursor-pointer">
+            <a href={downloadUrl} download onClick={trackDownload} className="btn-primary cursor-pointer">
               下载 App
             </a>
           </div>
@@ -291,7 +274,7 @@ export default function App() {
               >
                 <motion.div variants={staggerItem}>
                   <span className="inline-block px-4 py-2 bg-solarized-yellow/20 border-2 border-solarized-yellow text-solarized-base02 text-sm font-bold uppercase tracking-wider">
-                    {siteText.hero_badge}
+                    武汉商学院专属
                   </span>
                 </motion.div>
 
@@ -299,20 +282,20 @@ export default function App() {
                   variants={staggerItem}
                   className="text-7xl lg:text-8xl font-display font-bold leading-none text-solarized-base02"
                 >
-                  {siteText.hero_title_line1}
+                  你的课表
                   <br />
-                  <span className="text-solarized-orange">{siteText.hero_title_highlight}</span>
+                  <span className="text-solarized-orange">只属于你</span>
                 </motion.h1>
 
                 <motion.p
                   variants={staggerItem}
                   className="text-xl text-solarized-base01 leading-relaxed max-w-xl"
                 >
-                  {siteText.hero_description}
+                  专为武汉商学院打造的现代化课表应用。无感自动同步教务系统，完全开源。
                 </motion.p>
 
                 <motion.div variants={staggerItem} className="flex flex-wrap gap-4 pt-4">
-                  <a href={DOWNLOAD_URL} download className="btn-primary cursor-pointer">
+                  <a href={downloadUrl} download onClick={trackDownload} className="btn-primary cursor-pointer">
                     立即下载
                   </a>
                   <a href="#showcase" className="btn-secondary cursor-pointer">
@@ -357,10 +340,10 @@ export default function App() {
               className="mb-16"
             >
               <span className="inline-block px-4 py-2 bg-solarized-orange text-solarized-base3 text-sm font-bold uppercase tracking-wider mb-4">
-                {siteText.feature_section_badge}
+                核心功能
               </span>
               <h2 className="text-5xl lg:text-6xl font-display font-bold text-solarized-base02 mb-4">
-                {siteText.feature_section_title}
+                为什么选择 ClassFlow
               </h2>
             </motion.div>
 
@@ -372,7 +355,7 @@ export default function App() {
               viewport={{ once: true, amount: 0.2 }}
               className="grid md:grid-cols-3 gap-6"
             >
-              {features.map((feature, index) => (
+              {FEATURES.map((feature, index) => (
                 <motion.div
                   key={index}
                   variants={staggerItem}
@@ -576,7 +559,7 @@ export default function App() {
               viewport={{ once: true, amount: 0.3 }}
               className="mt-12 flex flex-wrap items-center justify-center gap-4"
             >
-              <a href={DOWNLOAD_URL} download className="btn-primary cursor-pointer">
+              <a href={downloadUrl} download onClick={trackDownload} className="btn-primary cursor-pointer">
                 下载 ClassFlow
               </a>
               <a
@@ -601,7 +584,7 @@ export default function App() {
                   <a href="#features" className="block text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">功能</a>
                   <a href="#compare" className="block text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">对比</a>
                   <a href="#showcase" className="block text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">展示</a>
-                  <a href={DOWNLOAD_URL} download className="block text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">下载</a>
+                  <a href={downloadUrl} download onClick={trackDownload} className="block text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">下载</a>
                 </div>
               </div>
               <div>
@@ -622,7 +605,7 @@ export default function App() {
                 <h3 className="text-xl font-display font-bold mb-4 text-solarized-base3">开源</h3>
                 <div className="space-y-2">
                   <a href={GITHUB_URL} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 shrink-0"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" /></svg>
                     GitHub 仓库
                   </a>
                   <a href={RELEASES_URL} target="_blank" rel="noreferrer" className="block text-solarized-base1 hover:text-solarized-base3 transition-colors cursor-pointer">
