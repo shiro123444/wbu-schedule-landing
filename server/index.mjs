@@ -16,6 +16,9 @@ const DOWNLOAD_URL = process.env.DOWNLOAD_URL || DEFAULT_DOWNLOAD_URL;
 const ADMIN_DEFAULT_USERNAME = "admin";
 const ADMIN_DEFAULT_PASSWORD = "fyz040913";
 const ADMIN_SESSION_DAYS = 30;
+const DOWNLOAD_SYNC_INTERVAL_MS = 10 * 60 * 1000;
+const DEFAULT_GITHUB_REPO = "shiro123444/ClassFlow";
+const DEFAULT_GITHUB_ASSET_NAME = "app-prod-arm64-v8a-release.apk";
 const BLOCKED_TERMS = ["傻逼", "妈的", "操你", "色情", "赌博", "诈骗"];
 
 const DEFAULT_TESTIMONIALS = [
@@ -106,6 +109,19 @@ function initDatabase() {
       value TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS download_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      prefer_self_hosted INTEGER NOT NULL DEFAULT 1,
+      self_hosted_url TEXT NOT NULL DEFAULT '',
+      github_repo TEXT NOT NULL DEFAULT 'shiro123444/ClassFlow',
+      github_asset_name TEXT NOT NULL DEFAULT 'app-prod-arm64-v8a-release.apk',
+      latest_release_tag TEXT NOT NULL DEFAULT '',
+      latest_github_url TEXT NOT NULL DEFAULT '',
+      last_sync_status TEXT NOT NULL DEFAULT 'never',
+      last_sync_error TEXT NOT NULL DEFAULT '',
+      last_synced_at TEXT NOT NULL DEFAULT ''
+    );
   `);
 
   db.prepare(
@@ -160,6 +176,25 @@ function initDatabase() {
   });
 
   seedSiteContent(Object.entries(DEFAULT_SITE_CONTENT));
+
+  db.prepare(
+    `
+      INSERT INTO download_settings (
+        id,
+        prefer_self_hosted,
+        self_hosted_url,
+        github_repo,
+        github_asset_name,
+        latest_release_tag,
+        latest_github_url,
+        last_sync_status,
+        last_sync_error,
+        last_synced_at
+      )
+      VALUES (1, 1, '', ?, ?, '', '', 'never', '', '')
+      ON CONFLICT(id) DO NOTHING
+    `
+  ).run(DEFAULT_GITHUB_REPO, DEFAULT_GITHUB_ASSET_NAME);
 
   return db;
 }
@@ -240,6 +275,52 @@ const upsertSiteContent = db.prepare(
   `
 );
 
+const readDownloadSettings = db.prepare(`
+  SELECT
+    id,
+    prefer_self_hosted AS preferSelfHosted,
+    self_hosted_url AS selfHostedUrl,
+    github_repo AS githubRepo,
+    github_asset_name AS githubAssetName,
+    latest_release_tag AS latestReleaseTag,
+    latest_github_url AS latestGithubUrl,
+    last_sync_status AS lastSyncStatus,
+    last_sync_error AS lastSyncError,
+    last_synced_at AS lastSyncedAt
+  FROM download_settings
+  WHERE id = 1
+`);
+
+const updateDownloadSettings = db.prepare(`
+  UPDATE download_settings
+  SET
+    prefer_self_hosted = @preferSelfHosted,
+    self_hosted_url = @selfHostedUrl,
+    github_repo = @githubRepo,
+    github_asset_name = @githubAssetName
+  WHERE id = 1
+`);
+
+const markDownloadSyncSuccess = db.prepare(`
+  UPDATE download_settings
+  SET
+    latest_release_tag = @latestReleaseTag,
+    latest_github_url = @latestGithubUrl,
+    last_sync_status = 'success',
+    last_sync_error = '',
+    last_synced_at = datetime('now')
+  WHERE id = 1
+`);
+
+const markDownloadSyncFailure = db.prepare(`
+  UPDATE download_settings
+  SET
+    last_sync_status = 'failed',
+    last_sync_error = @lastSyncError,
+    last_synced_at = datetime('now')
+  WHERE id = 1
+`);
+
 const incrementDownloadCount = db.transaction(() => {
   db.prepare(
     "UPDATE metrics SET value = value + 1, updated_at = datetime('now') WHERE key = 'downloads'"
@@ -276,6 +357,97 @@ function parseBearerToken(req) {
   return raw.slice(7).trim();
 }
 
+function normalizeRepo(value) {
+  const repo = normalizeText(value);
+  if (!repo) return "";
+  const isValid = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo);
+  return isValid ? repo : "";
+}
+
+function resolveDownloadUrl(settings) {
+  if (settings.preferSelfHosted && settings.selfHostedUrl) {
+    return settings.selfHostedUrl;
+  }
+  if (settings.latestGithubUrl) {
+    return settings.latestGithubUrl;
+  }
+  return DOWNLOAD_URL;
+}
+
+let isSyncingDownload = false;
+
+async function syncLatestDownload(trigger = "interval") {
+  if (isSyncingDownload) {
+    return {
+      trigger,
+      skipped: true,
+      reason: "sync_in_progress",
+    };
+  }
+
+  isSyncingDownload = true;
+  try {
+    const settings = readDownloadSettings.get();
+    const repo = normalizeRepo(settings?.githubRepo) || DEFAULT_GITHUB_REPO;
+    const assetName =
+      normalizeText(settings?.githubAssetName) || DEFAULT_GITHUB_ASSET_NAME;
+
+    const apiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
+    const response = await fetch(apiUrl, {
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "classflow-download-sync",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API ${response.status}`);
+    }
+
+    const payload = await response.json();
+    const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+    const exactAsset = assets.find((item) => item?.name === assetName);
+    const fuzzyAsset = assets.find(
+      (item) =>
+        typeof item?.name === "string" &&
+        item.name.toLowerCase().includes(assetName.toLowerCase())
+    );
+    const fallbackApk = assets.find(
+      (item) =>
+        typeof item?.name === "string" && item.name.toLowerCase().endsWith(".apk")
+    );
+    const chosen = exactAsset || fuzzyAsset || fallbackApk;
+
+    const latestGithubUrl = normalizeText(chosen?.browser_download_url);
+    if (!latestGithubUrl) {
+      throw new Error("未找到可用的 release 下载资源");
+    }
+
+    markDownloadSyncSuccess.run({
+      latestReleaseTag: normalizeText(payload?.tag_name),
+      latestGithubUrl,
+    });
+
+    const next = readDownloadSettings.get();
+    return {
+      trigger,
+      skipped: false,
+      settings: next,
+      effectiveDownloadUrl: resolveDownloadUrl(next),
+    };
+  } catch (error) {
+    const message = normalizeText(error?.message) || "同步失败";
+    markDownloadSyncFailure.run({ lastSyncError: message.slice(0, 300) });
+    return {
+      trigger,
+      skipped: false,
+      error: message,
+    };
+  } finally {
+    isSyncingDownload = false;
+  }
+}
+
 function requireAdmin(req, res, next) {
   const token = parseBearerToken(req);
   if (!token) {
@@ -305,11 +477,12 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.get("/api/config", (_req, res) => {
+  const settings = readDownloadSettings.get();
   res.json({
     feedbackModeration: ENABLE_FEEDBACK_MODERATION,
     maxNicknameLength: MAX_NICKNAME_LENGTH,
     maxMessageLength: MAX_QUOTE_LENGTH,
-    downloadUrl: DOWNLOAD_URL,
+    downloadUrl: resolveDownloadUrl(settings),
   });
 });
 
@@ -323,11 +496,12 @@ app.get("/api/stats", (_req, res) => {
 
 app.post("/api/download", (_req, res) => {
   const row = incrementDownloadCount();
+  const settings = readDownloadSettings.get();
 
   res.json({
     downloadCount: row.value,
     updatedAt: row.updatedAt,
-    downloadUrl: DOWNLOAD_URL,
+    downloadUrl: resolveDownloadUrl(settings),
   });
 });
 
@@ -589,6 +763,76 @@ app.put("/api/admin/site-content/:key", requireAdmin, (req, res) => {
   upsertSiteContent.run(key, value);
   return res.json({ success: true, key, value });
 });
+
+app.get("/api/admin/download-settings", requireAdmin, (_req, res) => {
+  const settings = readDownloadSettings.get();
+  return res.json({
+    settings,
+    effectiveDownloadUrl: resolveDownloadUrl(settings),
+    syncIntervalMinutes: DOWNLOAD_SYNC_INTERVAL_MS / 60000,
+  });
+});
+
+app.put("/api/admin/download-settings", requireAdmin, (req, res) => {
+  const current = readDownloadSettings.get();
+  const next = {
+    preferSelfHosted:
+      typeof req.body?.preferSelfHosted === "boolean"
+        ? req.body.preferSelfHosted
+          ? 1
+          : 0
+        : current.preferSelfHosted,
+    selfHostedUrl:
+      req.body?.selfHostedUrl === undefined
+        ? current.selfHostedUrl
+        : normalizeText(req.body.selfHostedUrl),
+    githubRepo:
+      req.body?.githubRepo === undefined
+        ? current.githubRepo
+        : normalizeRepo(req.body.githubRepo),
+    githubAssetName:
+      req.body?.githubAssetName === undefined
+        ? current.githubAssetName
+        : normalizeText(req.body.githubAssetName),
+  };
+
+  if (req.body?.githubRepo !== undefined && !next.githubRepo) {
+    return res.status(400).json({ error: "GitHub 仓库格式应为 owner/repo" });
+  }
+
+  if (!next.githubAssetName) {
+    return res.status(400).json({ error: "资源文件名不能为空" });
+  }
+
+  if (next.selfHostedUrl.length > 500) {
+    return res.status(400).json({ error: "自托管链接过长" });
+  }
+
+  updateDownloadSettings.run(next);
+  const settings = readDownloadSettings.get();
+  return res.json({
+    success: true,
+    settings,
+    effectiveDownloadUrl: resolveDownloadUrl(settings),
+  });
+});
+
+app.post("/api/admin/download-settings/sync", requireAdmin, async (_req, res) => {
+  const result = await syncLatestDownload("manual");
+  if (result.error) {
+    return res.status(500).json({ success: false, ...result });
+  }
+  return res.json({ success: true, ...result });
+});
+
+setTimeout(() => {
+  syncLatestDownload("startup").catch(() => {});
+}, 1000);
+
+const downloadSyncTimer = setInterval(() => {
+  syncLatestDownload("interval").catch(() => {});
+}, DOWNLOAD_SYNC_INTERVAL_MS);
+downloadSyncTimer.unref();
 
 app.listen(PORT, () => {
   console.log(`[classflow-api] running on http://localhost:${PORT}`);

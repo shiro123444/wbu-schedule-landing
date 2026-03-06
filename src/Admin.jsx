@@ -42,6 +42,21 @@ export default function Admin() {
     const [siteContent, setSiteContent] = useState({});
     const [siteContentLoading, setSiteContentLoading] = useState(true);
     const [savingSiteKey, setSavingSiteKey] = useState("");
+    const [downloadSettings, setDownloadSettings] = useState({
+        preferSelfHosted: 1,
+        selfHostedUrl: "",
+        githubRepo: "shiro123444/ClassFlow",
+        githubAssetName: "app-prod-arm64-v8a-release.apk",
+        latestReleaseTag: "",
+        latestGithubUrl: "",
+        lastSyncStatus: "never",
+        lastSyncError: "",
+        lastSyncedAt: "",
+    });
+    const [effectiveDownloadUrl, setEffectiveDownloadUrl] = useState("");
+    const [downloadSettingsLoading, setDownloadSettingsLoading] = useState(true);
+    const [savingDownloadSettings, setSavingDownloadSettings] = useState(false);
+    const [syncingDownloadSettings, setSyncingDownloadSettings] = useState(false);
 
     const authHeaders = useMemo(() => {
         if (!token) return {};
@@ -101,6 +116,21 @@ export default function Admin() {
         }
     };
 
+    const fetchDownloadSettings = async () => {
+        try {
+            const res = await authFetch("/api/admin/download-settings");
+            const data = await res.json();
+            if (data?.settings) {
+                setDownloadSettings(data.settings);
+                setEffectiveDownloadUrl(data.effectiveDownloadUrl || "");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setDownloadSettingsLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!token) {
             setLoading(false);
@@ -110,9 +140,11 @@ export default function Admin() {
 
         setLoading(true);
         setSiteContentLoading(true);
+        setDownloadSettingsLoading(true);
         fetchMe();
         fetchTestimonials();
         fetchSiteContent();
+        fetchDownloadSettings();
     }, [token]);
 
     const handleLogin = async (e) => {
@@ -262,6 +294,59 @@ export default function Admin() {
             alert("网络错误");
         } finally {
             setSavingSiteKey("");
+        }
+    };
+
+    const handleSaveDownloadSettings = async () => {
+        setSavingDownloadSettings(true);
+        try {
+            const payload = {
+                preferSelfHosted: !!downloadSettings.preferSelfHosted,
+                selfHostedUrl: downloadSettings.selfHostedUrl || "",
+                githubRepo: downloadSettings.githubRepo || "",
+                githubAssetName: downloadSettings.githubAssetName || "",
+            };
+            const res = await authFetch("/api/admin/download-settings", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || "保存失败");
+                return;
+            }
+
+            setDownloadSettings(data.settings || payload);
+            setEffectiveDownloadUrl(data.effectiveDownloadUrl || "");
+            alert("下载配置已保存");
+        } catch (err) {
+            console.error(err);
+            alert("网络错误");
+        } finally {
+            setSavingDownloadSettings(false);
+        }
+    };
+
+    const handleSyncDownloadSettings = async () => {
+        setSyncingDownloadSettings(true);
+        try {
+            const res = await authFetch("/api/admin/download-settings/sync", {
+                method: "POST",
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || data.lastSyncError || "同步失败");
+                return;
+            }
+
+            await fetchDownloadSettings();
+            alert("已完成同步");
+        } catch (err) {
+            console.error(err);
+            alert("同步失败");
+        } finally {
+            setSyncingDownloadSettings(false);
         }
     };
 
@@ -499,6 +584,102 @@ export default function Admin() {
                                     </button>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-solarized-base2 border-2 border-solarized-base02 p-6 shadow-[8px_8px_0px_0px_rgba(0,43,54,1)]">
+                    <h2 className="text-lg font-bold mb-4 font-display">下载源管理（10分钟自动同步）</h2>
+                    {downloadSettingsLoading ? (
+                        <p className="text-solarized-base01">加载中...</p>
+                    ) : (
+                        <div className="space-y-4">
+                            <label className="flex items-center gap-2 text-sm font-semibold">
+                                <input
+                                    type="checkbox"
+                                    checked={!!downloadSettings.preferSelfHosted}
+                                    onChange={(e) =>
+                                        setDownloadSettings((prev) => ({
+                                            ...prev,
+                                            preferSelfHosted: e.target.checked ? 1 : 0,
+                                        }))
+                                    }
+                                />
+                                优先使用自托管下载地址
+                            </label>
+
+                            <label className="block">
+                                <span className="block text-sm font-semibold mb-1">自托管下载地址</span>
+                                <input
+                                    value={downloadSettings.selfHostedUrl || ""}
+                                    onChange={(e) =>
+                                        setDownloadSettings((prev) => ({
+                                            ...prev,
+                                            selfHostedUrl: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="https://your-domain/path/app.apk"
+                                    className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                />
+                            </label>
+
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <label className="block">
+                                    <span className="block text-sm font-semibold mb-1">GitHub 仓库</span>
+                                    <input
+                                        value={downloadSettings.githubRepo || ""}
+                                        onChange={(e) =>
+                                            setDownloadSettings((prev) => ({
+                                                ...prev,
+                                                githubRepo: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="owner/repo"
+                                        className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                    />
+                                </label>
+                                <label className="block">
+                                    <span className="block text-sm font-semibold mb-1">Release 资源名</span>
+                                    <input
+                                        value={downloadSettings.githubAssetName || ""}
+                                        onChange={(e) =>
+                                            setDownloadSettings((prev) => ({
+                                                ...prev,
+                                                githubAssetName: e.target.value,
+                                            }))
+                                        }
+                                        placeholder="app-prod-arm64-v8a-release.apk"
+                                        className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="text-xs text-solarized-base01 space-y-1">
+                                <p>当前生效下载地址：{effectiveDownloadUrl || "(暂无)"}</p>
+                                <p>最近同步标签：{downloadSettings.latestReleaseTag || "(暂无)"}</p>
+                                <p>最近同步状态：{downloadSettings.lastSyncStatus || "never"}</p>
+                                <p>最近同步时间：{downloadSettings.lastSyncedAt || "(暂无)"}</p>
+                                {downloadSettings.lastSyncError && (
+                                    <p className="text-solarized-red">最近错误：{downloadSettings.lastSyncError}</p>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    onClick={handleSaveDownloadSettings}
+                                    disabled={savingDownloadSettings}
+                                    className="px-3 py-1.5 bg-solarized-cyan/10 text-solarized-cyan border-2 border-solarized-cyan font-bold hover:bg-solarized-cyan hover:text-solarized-base3 transition-colors cursor-pointer"
+                                >
+                                    {savingDownloadSettings ? "保存中..." : "保存下载配置"}
+                                </button>
+                                <button
+                                    onClick={handleSyncDownloadSettings}
+                                    disabled={syncingDownloadSettings}
+                                    className="px-3 py-1.5 bg-solarized-yellow/10 text-solarized-yellow border-2 border-solarized-yellow font-bold hover:bg-solarized-yellow hover:text-solarized-base3 transition-colors cursor-pointer"
+                                >
+                                    {syncingDownloadSettings ? "同步中..." : "立即同步 GitHub"}
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>
