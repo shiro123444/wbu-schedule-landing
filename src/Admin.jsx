@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 
 const ADMIN_TOKEN_KEY = "classflow_admin_token";
-const ADMIN_USERNAME = "admin";
+const DEFAULT_ADMIN_USERNAME = "admin";
 
 const SITE_CONTENT_FIELDS = [
   { key: "hero_badge", label: "首页徽章" },
@@ -19,9 +19,25 @@ const SITE_CONTENT_FIELDS = [
   { key: "feature_3_desc", label: "功能 3 描述", multiline: true },
 ];
 
+function formatBytes(value) {
+    const size = Number(value) || 0;
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("文件读取失败"));
+        reader.readAsDataURL(file);
+    });
+}
+
 export default function Admin() {
     const [token, setToken] = useState(() => localStorage.getItem(ADMIN_TOKEN_KEY) || "");
-    const [loginUsername, setLoginUsername] = useState(ADMIN_USERNAME);
+    const [loginUsername, setLoginUsername] = useState(DEFAULT_ADMIN_USERNAME);
     const [loginPassword, setLoginPassword] = useState("");
     const [loginError, setLoginError] = useState("");
     const [loggingIn, setLoggingIn] = useState(false);
@@ -45,6 +61,7 @@ export default function Admin() {
     const [downloadSettings, setDownloadSettings] = useState({
         preferSelfHosted: 1,
         selfHostedUrl: "",
+        syncSourceUrl: "",
         githubRepo: "shiro123444/ClassFlow",
         githubAssetName: "app-prod-arm64-v8a-release.apk",
         latestReleaseTag: "",
@@ -57,6 +74,11 @@ export default function Admin() {
     const [downloadSettingsLoading, setDownloadSettingsLoading] = useState(true);
     const [savingDownloadSettings, setSavingDownloadSettings] = useState(false);
     const [syncingDownloadSettings, setSyncingDownloadSettings] = useState(false);
+    const [downloadFiles, setDownloadFiles] = useState([]);
+    const [downloadFilesLoading, setDownloadFilesLoading] = useState(true);
+    const [selectedUploadFile, setSelectedUploadFile] = useState(null);
+    const [uploadingDownloadFile, setUploadingDownloadFile] = useState(false);
+    const [deletingDownloadFile, setDeletingDownloadFile] = useState(false);
 
     const authHeaders = useMemo(() => {
         if (!token) return {};
@@ -131,20 +153,35 @@ export default function Admin() {
         }
     };
 
+    const fetchDownloadFiles = async () => {
+        try {
+            const res = await authFetch("/api/admin/download-files");
+            const data = await res.json();
+            setDownloadFiles(data.files || []);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setDownloadFilesLoading(false);
+        }
+    };
+
     useEffect(() => {
         if (!token) {
             setLoading(false);
             setSiteContentLoading(false);
+            setDownloadFilesLoading(false);
             return;
         }
 
         setLoading(true);
         setSiteContentLoading(true);
         setDownloadSettingsLoading(true);
+        setDownloadFilesLoading(true);
         fetchMe();
         fetchTestimonials();
         fetchSiteContent();
         fetchDownloadSettings();
+        fetchDownloadFiles();
     }, [token]);
 
     const handleLogin = async (e) => {
@@ -303,6 +340,7 @@ export default function Admin() {
             const payload = {
                 preferSelfHosted: !!downloadSettings.preferSelfHosted,
                 selfHostedUrl: downloadSettings.selfHostedUrl || "",
+                syncSourceUrl: downloadSettings.syncSourceUrl || "",
                 githubRepo: downloadSettings.githubRepo || "",
                 githubAssetName: downloadSettings.githubAssetName || "",
             };
@@ -341,6 +379,7 @@ export default function Admin() {
             }
 
             await fetchDownloadSettings();
+            await fetchDownloadFiles();
             alert("已完成同步");
         } catch (err) {
             console.error(err);
@@ -350,13 +389,77 @@ export default function Admin() {
         }
     };
 
+    const handleUploadDownloadFile = async () => {
+        if (!selectedUploadFile) {
+            alert("请先选择要上传的文件");
+            return;
+        }
+
+        setUploadingDownloadFile(true);
+        try {
+            const dataUrl = await readFileAsDataUrl(selectedUploadFile);
+            const base64 = dataUrl.includes(",") ? dataUrl.split(",").pop() : dataUrl;
+
+            const res = await authFetch("/api/admin/download-files/upload", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fileName: selectedUploadFile.name,
+                    contentBase64: base64,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || "上传失败");
+                return;
+            }
+
+            setSelectedUploadFile(null);
+            await fetchDownloadSettings();
+            await fetchDownloadFiles();
+            alert("上传成功，已替换服务器当前下载文件");
+        } catch (err) {
+            console.error(err);
+            alert("上传失败");
+        } finally {
+            setUploadingDownloadFile(false);
+        }
+    };
+
+    const handleDeleteCurrentDownload = async () => {
+        if (!confirm("删除当前服务器缓存文件后，下载将回退到 GitHub 或自托管地址，确定继续吗？")) {
+            return;
+        }
+
+        setDeletingDownloadFile(true);
+        try {
+            const res = await authFetch("/api/admin/download-files/current", {
+                method: "DELETE",
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(data.error || "删除失败");
+                return;
+            }
+
+            await fetchDownloadSettings();
+            await fetchDownloadFiles();
+            alert("当前服务器缓存文件已删除");
+        } catch (err) {
+            console.error(err);
+            alert("删除失败");
+        } finally {
+            setDeletingDownloadFile(false);
+        }
+    };
+
     if (!token) {
         return (
             <div className="min-h-screen bg-solarized-base3 text-solarized-base02 font-sans py-12 px-6 selection:bg-solarized-yellow selection:text-solarized-base3 pb-32">
                 <div className="max-w-xl mx-auto space-y-8">
                     <div className="border-b-2 border-solarized-base02 pb-4">
                         <h1 className="text-3xl font-display font-bold">ClassFlow 管理员登录</h1>
-                        <p className="text-solarized-base01 mt-1 text-sm">请输入管理员账号密码后进入控制台。</p>
+                        <p className="text-solarized-base01 mt-1 text-sm">请输入管理员账号密码后进入控制台，账号名可在服务端通过 `ADMIN_USERNAME` 调整。</p>
                     </div>
 
                     <div className="bg-solarized-base2 border-2 border-solarized-base02 p-6 shadow-[8px_8px_0px_0px_rgba(0,43,54,1)]">
@@ -623,6 +726,21 @@ export default function Admin() {
                                 />
                             </label>
 
+                            <label className="block">
+                                <span className="block text-sm font-semibold mb-1">同步源覆盖地址</span>
+                                <input
+                                    value={downloadSettings.syncSourceUrl || ""}
+                                    onChange={(e) =>
+                                        setDownloadSettings((prev) => ({
+                                            ...prev,
+                                            syncSourceUrl: e.target.value,
+                                        }))
+                                    }
+                                    placeholder="可填 GitHub 代理、镜像或任意直链；留空则按 GitHub 仓库/资源名自动发现"
+                                    className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                                />
+                            </label>
+
                             <div className="grid md:grid-cols-2 gap-4">
                                 <label className="block">
                                     <span className="block text-sm font-semibold mb-1">GitHub 仓库</span>
@@ -656,9 +774,11 @@ export default function Admin() {
 
                             <div className="text-xs text-solarized-base01 space-y-1">
                                 <p>当前生效下载地址：{effectiveDownloadUrl || "(暂无)"}</p>
+                                <p>当前策略：下载按钮优先走服务器本机缓存文件；如果本机暂无文件，再按配置回退。</p>
                                 <p>最近同步标签：{downloadSettings.latestReleaseTag || "(暂无)"}</p>
                                 <p>最近同步状态：{downloadSettings.lastSyncStatus || "never"}</p>
                                 <p>最近同步时间：{downloadSettings.lastSyncedAt || "(暂无)"}</p>
+                                <p>当前本机文件：{downloadSettings.localOriginalName || "(暂无)"}</p>
                                 {downloadSettings.lastSyncError && (
                                     <p className="text-solarized-red">最近错误：{downloadSettings.lastSyncError}</p>
                                 )}
@@ -682,6 +802,75 @@ export default function Admin() {
                             </div>
                         </div>
                     )}
+                </div>
+
+                <div className="bg-solarized-base2 border-2 border-solarized-base02 p-6 shadow-[8px_8px_0px_0px_rgba(0,43,54,1)]">
+                    <h2 className="text-lg font-bold mb-4 font-display">服务器缓存文件管理</h2>
+                    <p className="text-sm text-solarized-base01 mb-4">
+                        GitHub 自动同步和手动上传都会清理旧文件，仅保留当前正在提供下载的版本，避免磁盘堆积。
+                    </p>
+
+                    {downloadFilesLoading ? (
+                        <p className="text-solarized-base01">加载中...</p>
+                    ) : downloadFiles.length === 0 ? (
+                        <p className="text-solarized-base01">当前服务器下载目录为空，下一次自动同步或手动上传后会出现文件。</p>
+                    ) : (
+                        <div className="space-y-3 mb-6">
+                            {downloadFiles.map((file) => (
+                                <div key={file.name} className="border-2 border-solarized-base02 bg-solarized-base3 p-4 flex flex-col gap-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div>
+                                            <p className="font-semibold text-solarized-base02 break-all">{file.originalName}</p>
+                                            <p className="text-xs text-solarized-base01 break-all">{file.name}</p>
+                                        </div>
+                                        {file.active && (
+                                            <span className="px-3 py-1 text-xs font-bold bg-solarized-green text-solarized-base3">
+                                                当前生效
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-solarized-base01 space-y-1">
+                                        <p>大小：{formatBytes(file.size)}</p>
+                                        <p>来源：{file.source === "admin_upload" ? "管理员上传" : file.source === "github_sync" ? "GitHub 自动拉取" : file.source || "未知"}</p>
+                                        <p>更新时间：{file.updatedAt || "(暂无)"}</p>
+                                        {file.url && (
+                                            <p>
+                                                下载地址：
+                                                <a href={file.url} target="_blank" rel="noreferrer" className="text-solarized-cyan hover:text-solarized-blue transition-colors break-all ml-1">
+                                                    {file.url}
+                                                </a>
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="grid md:grid-cols-[1fr_auto_auto] gap-3 items-end">
+                        <label className="block">
+                            <span className="block text-sm font-semibold mb-1">上传替代文件</span>
+                            <input
+                                type="file"
+                                onChange={(e) => setSelectedUploadFile(e.target.files?.[0] || null)}
+                                className="w-full border-2 border-solarized-base02 bg-solarized-base3 px-3 py-2 text-sm focus:outline-none focus:border-solarized-orange"
+                            />
+                        </label>
+                        <button
+                            onClick={handleUploadDownloadFile}
+                            disabled={uploadingDownloadFile || !selectedUploadFile}
+                            className="px-4 py-2 bg-solarized-cyan/10 text-solarized-cyan border-2 border-solarized-cyan font-bold hover:bg-solarized-cyan hover:text-solarized-base3 transition-colors cursor-pointer"
+                        >
+                            {uploadingDownloadFile ? "上传中..." : "上传并替换"}
+                        </button>
+                        <button
+                            onClick={handleDeleteCurrentDownload}
+                            disabled={deletingDownloadFile}
+                            className="px-4 py-2 bg-solarized-red/10 text-solarized-red border-2 border-solarized-red font-bold hover:bg-solarized-red hover:text-solarized-base3 transition-colors cursor-pointer"
+                        >
+                            {deletingDownloadFile ? "删除中..." : "删除当前文件"}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
