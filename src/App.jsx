@@ -62,23 +62,20 @@ const RELEASES_URL = "https://github.com/shiro123444/ClassFlow/releases/latest";
 const QQ_GROUP_URL = "https://qm.qq.com/q/6HDQuU2R68";
 const AI_PORTAL_URL = "https://portal.wbuai.me/";
 
-const FEATURES = [
-  {
-    title: "教务系统同步",
-    desc: "自动对接武汉商学院教务系统，课表实时更新",
-    color: "cyan",
-  },
-  {
-    title: "现代化界面",
-    desc: "高对比度设计语言，清晰直观的视觉体验",
-    color: "blue",
-  },
-  {
-    title: "轻量无广告",
-    desc: "纯净体验，专注课表管理，无任何广告干扰",
-    color: "green",
-  },
-];
+const SITE_TEXT_DEFAULTS = {
+  hero_badge: "武汉商学院专属",
+  hero_title_line1: "你的课表",
+  hero_title_highlight: "只属于你",
+  hero_description: "专为武汉商学院打造的现代化课表应用。无感自动同步教务系统，完全开源。",
+  feature_section_badge: "核心功能",
+  feature_section_title: "为什么选择 ClassFlow",
+  feature_1_title: "教务系统同步",
+  feature_1_desc: "自动对接武汉商学院教务系统，课表实时更新",
+  feature_2_title: "现代化界面",
+  feature_2_desc: "高对比度设计语言，清晰直观的视觉体验",
+  feature_3_title: "轻量无广告",
+  feature_3_desc: "纯净体验，专注课表管理，无任何广告干扰",
+};
 
 const ease = [0.22, 1, 0.36, 1];
 const cycleDuration = 4500;
@@ -129,6 +126,7 @@ function useReducedMotion() {
 export default function App() {
   const reducedMotion = useReducedMotion();
   const [downloadUrl, setDownloadUrl] = useState(DEFAULT_DOWNLOAD_URL);
+  const [siteText, setSiteText] = useState(SITE_TEXT_DEFAULTS);
   const [dayIndex, setDayIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const [autoCycleCompleted, setAutoCycleCompleted] = useState(false);
@@ -193,6 +191,27 @@ export default function App() {
     [showcaseInView, reducedMotion, paused, autoCycleCompleted]
   );
 
+  const features = useMemo(
+    () => [
+      {
+        title: siteText.feature_1_title,
+        desc: siteText.feature_1_desc,
+        color: "cyan",
+      },
+      {
+        title: siteText.feature_2_title,
+        desc: siteText.feature_2_desc,
+        color: "blue",
+      },
+      {
+        title: siteText.feature_3_title,
+        desc: siteText.feature_3_desc,
+        color: "green",
+      },
+    ],
+    [siteText]
+  );
+
   useEffect(() => {
     if (!shouldAnimateProgress) return undefined;
 
@@ -206,6 +225,25 @@ export default function App() {
 
     return () => window.clearInterval(timer);
   }, [shouldAnimateProgress]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/site-content")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        if (!active) return;
+        if (payload?.content) {
+          setSiteText((prev) => ({ ...prev, ...payload.content }));
+        }
+      })
+      .catch(() => {
+        // Keep defaults when content API is unavailable.
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const resetCycleFrom = (index) => {
     setDayIndex(index);
@@ -274,7 +312,7 @@ export default function App() {
               >
                 <motion.div variants={staggerItem}>
                   <span className="inline-block px-4 py-2 bg-solarized-yellow/20 border-2 border-solarized-yellow text-solarized-base02 text-sm font-bold uppercase tracking-wider">
-                    武汉商学院专属
+                    {siteText.hero_badge}
                   </span>
                 </motion.div>
 
@@ -282,16 +320,16 @@ export default function App() {
                   variants={staggerItem}
                   className="text-7xl lg:text-8xl font-display font-bold leading-none text-solarized-base02"
                 >
-                  你的课表
+                  {siteText.hero_title_line1}
                   <br />
-                  <span className="text-solarized-orange">只属于你</span>
+                  <span className="text-solarized-orange">{siteText.hero_title_highlight}</span>
                 </motion.h1>
 
                 <motion.p
                   variants={staggerItem}
                   className="text-xl text-solarized-base01 leading-relaxed max-w-xl"
                 >
-                  专为武汉商学院打造的现代化课表应用。无感自动同步教务系统，完全开源。
+                  {siteText.hero_description}
                 </motion.p>
 
                 <motion.div variants={staggerItem} className="flex flex-wrap gap-4 pt-4">
@@ -340,10 +378,10 @@ export default function App() {
               className="mb-16"
             >
               <span className="inline-block px-4 py-2 bg-solarized-orange text-solarized-base3 text-sm font-bold uppercase tracking-wider mb-4">
-                核心功能
+                {siteText.feature_section_badge}
               </span>
               <h2 className="text-5xl lg:text-6xl font-display font-bold text-solarized-base02 mb-4">
-                为什么选择 ClassFlow
+                {siteText.feature_section_title}
               </h2>
             </motion.div>
 
@@ -355,7 +393,7 @@ export default function App() {
               viewport={{ once: true, amount: 0.2 }}
               className="grid md:grid-cols-3 gap-6"
             >
-              {FEATURES.map((feature, index) => (
+              {features.map((feature, index) => (
                 <motion.div
                   key={index}
                   variants={staggerItem}
